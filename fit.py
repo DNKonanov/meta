@@ -1,75 +1,60 @@
-import numpy as np
-import scipy as sp
-from spectraClass import NmrSpectra
-from scipy.optimize import minimize
+import argparse
+from fittingModel import FittingModel
+from raw_spectra_processing import open_spectra, delete_water, resize_data
+from libdict import library
+import sys
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument(
+    '-ifolder', 
+    type=str, 
+    help='path to folder with Bruker fid file', 
+    required=True)
+parser.add_argument(
+    '-library', 
+    type=str, 
+    default='library/library', 
+    help='path library file. Format is described in README. Default is AQuA library')
+parser.add_argument(
+    '-frequency',
+    type=int,
+    default=500_000_000    
+)
 
 
-class Library:
+args = parser.parse_args()
 
-    def __init__(self, assignmemts, freq):
+ppm_scale, spectra = open_spectra(args.ifolder)
+spectra = delete_water(spectra)
 
-        self.library = []
-        self.freq = freq
-
-        for a in assignmemts:
-            self.library.append(NmrSpectra(a, name=a['name'], frequency=freq))
-
-
-
-    def update_library(self, shifts):
-
-        for i in range(shifts):
-            for j in range(len(shifts[i])):
-                self.library[i]['peak{}'.format(j)] += shifts[i][j]
-
-
-    def generate_sum_spectra(self, ALPHA):
-
-        spectra = np.zeros(int(12*self.freq/10**6))
-
-        
-        for i in range(len(self.library)):
-            spectra += ALPHA[i] * np.array(spectra)
-
-        
-        return spectra
-        
-
-
-class FittingModel:
-
-    def __init__(self, spectra, library, meta, frequency, ShiftsMatrix=None, ConcMatrix=None):
-
-        self.spectra = spectra
-        self.library = Library(library, freq=frequency)
-        self.metainfo = meta
-
-        
-
-        if ShiftsMatrix is not None:
-            self.PHI = ShiftsMatrix
-
-        if ConcMatrix is not None:
-            self.ALPHA = ConcMatrix
-    
-
-    def _fit_function(self, INPUT):
-
-        PHI, ALPHA = INPUT[0], INPUT[1]
-
-        self.library.update_library(PHI)
-
-        return self.library.generate_sum_spectra(ALPHA)
-
-    def optimize(self):
-
-        ALPHA = np.zeros(len(self.library)) + 1
-        PHI = [[0 for j in range(len(self.library.library[i]))] for i in range(len(self.library))]
-
-        res = minimize(self._fit_function, (PHI, ALPHA), method='nelder-mead')
-
-        return res
+ppm_scale, spectra = resize_data(ppm_scale, spectra, frequency=args.frequency)
+print(spectra)
 
 
 
+model = FittingModel(spectra, library, [], args.frequency)
+
+c = model._identify_compounds()
+ 
+cp = [ppm_scale[i] for i in c]
+
+print(cp)
+
+import matplotlib.pyplot as plt
+plt.plot(ppm_scale, spectra)
+plt.scatter(cp, [-0.001 for i in range(len(cp))])
+
+
+
+plt.show()
+
+
+
+sys.exit()
+
+res = model.optimize()
+
+
+print(res)
 

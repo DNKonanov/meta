@@ -8,31 +8,15 @@ test_data = {
         'sum_intensity': 3,
         'center': 2,
         'sigma': 2,
-        'coupling': {
-            'peak2': {
-                'J': {
-                    1: 10,
-                    2: 10,
-                    3: 10,
-                },
-            }
-        }
+        'J': [20,20, 15]
     },
+
+
     'peak2': {
         'sum_intensity': 1,
         'center': 4,
         'sigma': 3,
-        'coupling': {
-            'peak1': {
-                'J': {
-                    1: 15,
-                    2: 15,
-                    3: 15,
-                    4: 15,
-                    5: 15,
-                }
-            }
-        }
+        'J': [15,20]
     }
 }
 
@@ -47,12 +31,11 @@ class NmrSpectra:
 
     
     @staticmethod
-    def simulate_roofing(center, J, coupled_center):
-        theta = np.arctan(J/(coupled_center - center))/2
+    def compute_peaks(center, J):
 
         pl, pr = center - J, center + J
 
-        Il, Ir = 1 - np.sin(2*theta), 1 + np.sin(2*theta)
+        Il, Ir = 1, 1
 
         return pl, pr, Il, Ir
 
@@ -72,35 +55,25 @@ class NmrSpectra:
             sum_peak.append(
                 (ppm, peak['sum_intensity'])
             )
-            
 
+            for J in peak['J']:
 
-            for coupled_peak in peak['coupling']:
+                new_sum_peak = []
 
-                coupled_peak_center = self.frequency - self.assignment[coupled_peak]['center']*self.frequency/10**6
+                for p in sum_peak:
 
-
-
-                for J_key in peak['coupling'][coupled_peak]['J']:
-
-                    J = peak['coupling'][coupled_peak]['J'][J_key]
-
-                    new_sum_peak = []
-
-                    for p in sum_peak:
-
-                        pl, pr, Il, Ir = self.simulate_roofing(p[0], J, coupled_peak_center)
-                        
-
-                        new_sum_peak.extend( 
-                            (
-                                (pl, Il),
-                                (pr, Ir),
-                            ) 
-                        )
+                    pl, pr, Il, Ir = self.compute_peaks(p[0], J)
                     
-                    
-                    sum_peak = new_sum_peak
+
+                    new_sum_peak.extend( 
+                        (
+                            (pl, Il),
+                            (pr, Ir),
+                        ) 
+                    )
+                
+                
+                sum_peak = new_sum_peak
 
             for i in sum_peak:
 
@@ -110,10 +83,18 @@ class NmrSpectra:
                 
                 for j in range(-10*peak['sigma'], 10*peak['sigma']):
 
-
-                    spectra[j+coord] += self.lorenz(coord, peak['sigma'], j+coord)*intensity
+                    try:
+                        spectra[j+coord] += self.lorenz(coord, peak['sigma'], j+coord)*intensity
+                    except IndexError:
+                        pass
 
         return spectra
+
+    def __repr__(self):
+        return str(self.assignment) + '\n'
+
+    def __len__(self):
+        return len(self.assignment)
         
     @staticmethod
     def normal(mu, sigma, coord):
@@ -139,10 +120,6 @@ class NmrSpectra:
         plt.xlabel('Chemical shift, ppm')
         plt.ylabel('Intensity')
         plt.show()
-
-#test
-#spectra = NmrSpectra(test_data, name='test', frequency=70_000_000)
-#spectra.plot()
 
 
 
